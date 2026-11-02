@@ -16,3 +16,13 @@ VirtualBox VMs/
 Ubuntu/
 WinDows/
 .env
+*.iso
+*.zip
+*.deb
+*.pdf
+*.png
+*.jpg
+VirtualBox VMs/
+Ubuntu/
+WinDows/
+.env
