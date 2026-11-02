@@ -25,9 +25,15 @@ app.use(express.json());
 // ============================================================================
 // CLOUDFLARE ENTERPRISE & AWS WAF SECURITY HEADERS + SSL PINNING + ENCRYPTION
 // ============================================================================
+// SESSION_SECRET majburiy: standart kalit yo'q. Kamida 32 belgi (masalan: openssl rand -hex 32)
+const SESSION_SECRET_VALUE = process.env.SESSION_SECRET || '';
+if (SESSION_SECRET_VALUE.length < 32) {
+  console.error('FATAL: SESSION_SECRET o\'rnatilmagan yoki 32 belgidan qisqa. Server ishga tushmaydi.');
+  process.exit(1);
+}
 const AT_REST_MASTER_KEY = crypto
   .createHash('sha256')
-  .update(process.env.SESSION_SECRET || 'bunkerstroy-vpc-aes256gcm-argon2id-master-key')
+  .update(SESSION_SECRET_VALUE)
   .digest();
 
 
