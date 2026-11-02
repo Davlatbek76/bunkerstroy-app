@@ -1508,7 +1508,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {
             ...Object.fromEntries(Object.entries(supplierProfile).filter(([, v]) => v !== undefined)),
             login: foundSupplier.login,
-            passwordHash: foundSupplier.passwordHash,
+            passwordHash: verifyData?.passwordHash || foundSupplier.passwordHash,
             passwordMigrated: true,
             firebaseUid: fbRes.firebaseUid || foundSupplier.firebaseUid || null,
             password: deleteField(),
@@ -1560,7 +1560,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
           {
             ...Object.fromEntries(Object.entries(standardProfile).filter(([, v]) => v !== undefined)),
             login: foundCustomer.login || trimmedLogin,
-            passwordHash: foundCustomer.passwordHash,
+            passwordHash: verifyData?.passwordHash || foundCustomer.passwordHash,
             passwordMigrated: true,
             firebaseUid: fbRes.firebaseUid || foundCustomer.firebaseUid || null,
             password: deleteField(),
