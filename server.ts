@@ -36,6 +36,14 @@ async function verifyHashCompat(plain: string, stored: string): Promise<boolean>
   return (await verifyPassword(plain, stored)).valid;
 }
 
+// To'g'ri parol tasdiqlangandan KEYIN chaqiriladi: eski scrypt xeshni haqiqiy Argon2id ga almashtiradi
+async function upgradeStoredHash(plain: string, stored?: string): Promise<string> {
+  if (!stored) return hashPassword(plain);
+  const r = await verifyPassword(plain, String(stored));
+  if (r.valid && r.needsRehash) return hashPassword(plain);
+  return String(stored);
+}
+
 function encryptAtRestAES256GCM(plainText: string): string {
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', AT_REST_MASTER_KEY, iv);
@@ -392,7 +400,7 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
       if (!valid) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || await hashPassword(cleanPass);
+      const nextHash = await upgradeStoredHash(cleanPass, storedHash);
       issueHttpOnlySessionCookie(res, {
         userId: 'bunker-admin-master',
         login: cleanLogin,
@@ -452,7 +460,9 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
       if (!validPrimary && !validEmergency) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || await hashPassword(String(adminRecord.password || cleanPass).trim());
+      const nextHash = validPrimary && storedHash
+        ? await upgradeStoredHash(cleanPass, storedHash)
+        : (storedHash || await hashPassword(String(adminRecord.password || cleanPass).trim()));
       issueHttpOnlySessionCookie(res, {
         userId: 'admin-master',
         login: cleanLogin,
@@ -510,7 +520,7 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
       if (!valid) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || await hashPassword(cleanPass);
+      const nextHash = await upgradeStoredHash(cleanPass, storedHash);
       issueHttpOnlySessionCookie(res, {
         userId: subAdminRecord.id,
         login: cleanLogin,
