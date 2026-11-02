@@ -58,5 +58,35 @@
     "status": "migrated",
     "createdAt": "2026-11-01T10:24:38.493Z",
     "migratedAt": "2026-11-01T10:24:38.493Z"
+  },
+  {
+    "backupId": "bkp-1793622617687-bc810e87",
+    "userId": "usr-legacy-101",
+    "login": "rustam_stroy",
+    "role": "individual",
+    "encryptedSnapshot": "enc:aes256gcm:856554b3546ec0b6a40cec8c:5b909ef59c671b128a0823bee59990c0:1fe76c339cafa6553b5165f4242239d6e8a996796800decca8913226e24e3ec2e6cc9456d97a94f8920d557e274b465fbc6a90663fa3e544db85ce2be2267c025a3cbf778b6aa593c0fc2034733b956eb46daa54caa18ea7a6c10cb0d7ebdf63200596c88b4a849fd447f0c5524d85f7aeb47a6ed2d5bdbae03cd69504580ed06f42b969c7965b8f502323ffe091366117f8f189a2418780d6f9f6d019d97925",
+    "status": "rolled_back",
+    "createdAt": "2026-11-02T12:30:17.687Z",
+    "rolledBackAt": "2026-11-02T12:30:17.695Z"
+  },
+  {
+    "backupId": "bkp-1793622617707-7f62c1d9",
+    "userId": "usr-legacy-101",
+    "login": "rustam_stroy",
+    "role": "individual",
+    "encryptedSnapshot": "enc:aes256gcm:27cc75a52ce67f25377f5a6b:418d9ec2d3f5fa21078372f3a1a4fc60:328fcc4c039decb7aed49321d784079dd451c48465533e0b07e7145ba2616bce40642d6f3b5b568577cf839c4a204a98e4a2e6a3cfbc8d57f7ecd6b9c62355178a6f5d20b0204f049c31e417977e0c728a7558bc0e3e05494c7b2141d7f45a35ce9b96083c9eb696ca72c2190657be44d3a55b1d6d57e436c795e7d718b3e2ebc7cfe789887195441b2f1f6c1e0214b40e793b3c8d20dec23cdeb9c5df2f77c0",
+    "status": "migrated",
+    "createdAt": "2026-11-02T12:30:17.707Z",
+    "migratedAt": "2026-11-02T12:30:17.707Z"
+  },
+  {
+    "backupId": "bkp-1793622617985-280a301b",
+    "userId": "admin-master",
+    "login": "ADMIN.",
+    "role": "admin",
+    "encryptedSnapshot": "enc:aes256gcm:37a2f2c700ba3caeb83f9a7a:13cdcffd18235716a9dfdf1890cbf78c:1f43803d9b530391093eba51aa7fd6faf43150bc0f3962f766c1d190a1e63be91dbda4073a261fd3c9d9771e7239438f6ac7f673f647cc0e8aa10e03c1a20e3fc9d5",
+    "status": "migrated",
+    "createdAt": "2026-11-02T12:30:17.985Z",
+    "migratedAt": "2026-11-02T12:30:17.985Z"
   }
 ]
