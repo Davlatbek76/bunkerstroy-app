@@ -30,31 +30,10 @@ const AT_REST_MASTER_KEY = crypto
   .update(process.env.SESSION_SECRET || 'bunkerstroy-vpc-aes256gcm-argon2id-master-key')
   .digest();
 
-function hashPasswordArgon2idSpec(plainPassword: string, saltHex?: string): string {
-  const salt = saltHex ? Buffer.from(saltHex, 'hex') : crypto.randomBytes(16);
-  // High-cost memory-hard key derivation (Argon2id formatted digest)
-  const derived = crypto.scryptSync(plainPassword, salt, 32, { N: 16384, r: 8, p: 1 });
-  return `$argon2id$v=19$m=65536,t=3,p=4$${salt.toString('hex')}$${derived.toString('base64')}`;
-}
 
-function verifyPasswordArgon2idSpec(plainPassword: string, storedHash: string): boolean {
-  try {
-    if (!plainPassword || !storedHash || !storedHash.startsWith('$argon2id$')) return false;
-    const parts = storedHash.split('$');
-    // Format: ['', 'argon2id', 'v=19', 'm=65536,t=3,p=4', '<saltHex>', '<base64Derived>']
-    const saltHex = parts[4];
-    const expectedB64 = parts[5];
-    if (!saltHex || !expectedB64) return false;
-    const recomputed = hashPasswordArgon2idSpec(plainPassword, saltHex);
-    const recomputedParts = recomputed.split('$');
-    const actualB64 = recomputedParts[5] || '';
-    const aBuf = Buffer.from(actualB64, 'utf8');
-    const bBuf = Buffer.from(expectedB64, 'utf8');
-    if (aBuf.length !== bBuf.length) return false;
-    return crypto.timingSafeEqual(aBuf, bBuf);
-  } catch {
-    return false;
-  }
+// verifyPassword: haqiqiy Argon2id va eski (scrypt, "$argon2id$" deb yozilgan) xeshlarni tekshiradi
+async function verifyHashCompat(plain: string, stored: string): Promise<boolean> {
+  return (await verifyPassword(plain, stored)).valid;
 }
 
 function encryptAtRestAES256GCM(plainText: string): string {
@@ -354,7 +333,7 @@ app.post('/api/auth/verify-password', async (req: Request, res: Response) => {
 });
 
 // Eski akkauntlarni tekshirish va server tomonidan rol/parolni tasdiqlash
-app.post('/api/auth/verify-account', (req: Request, res: Response) => {
+app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
   try {
     const {
       login,
@@ -408,12 +387,12 @@ app.post('/api/auth/verify-account', (req: Request, res: Response) => {
 
       const storedHash = bunkerAdminRecord.passwordHash;
       const valid = storedHash
-        ? verifyPasswordArgon2idSpec(cleanPass, storedHash)
+        ? await verifyHashCompat(cleanPass, storedHash)
         : cleanPass === String(bunkerAdminRecord.password || '1234').trim();
       if (!valid) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || hashPasswordArgon2idSpec(cleanPass);
+      const nextHash = storedHash || await hashPassword(cleanPass);
       issueHttpOnlySessionCookie(res, {
         userId: 'bunker-admin-master',
         login: cleanLogin,
@@ -464,16 +443,16 @@ app.post('/api/auth/verify-account', (req: Request, res: Response) => {
       const storedHash = adminRecord.passwordHash;
       const storedEmergencyHash = adminRecord.emergencyPasswordHash;
       const validPrimary = storedHash
-        ? verifyPasswordArgon2idSpec(cleanPass, storedHash)
+        ? await verifyHashCompat(cleanPass, storedHash)
         : cleanPass === String(adminRecord.password || '1234.').trim();
       const validEmergency = storedEmergencyHash
-        ? verifyPasswordArgon2idSpec(cleanPass, storedEmergencyHash)
+        ? await verifyHashCompat(cleanPass, storedEmergencyHash)
         : Boolean(adminRecord.emergencyPassword && cleanPass === String(adminRecord.emergencyPassword).trim());
 
       if (!validPrimary && !validEmergency) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || hashPasswordArgon2idSpec(String(adminRecord.password || cleanPass).trim());
+      const nextHash = storedHash || await hashPassword(String(adminRecord.password || cleanPass).trim());
       issueHttpOnlySessionCookie(res, {
         userId: 'admin-master',
         login: cleanLogin,
@@ -526,12 +505,12 @@ app.post('/api/auth/verify-account', (req: Request, res: Response) => {
 
       const storedHash = subAdminRecord.passwordHash;
       const valid = storedHash
-        ? verifyPasswordArgon2idSpec(cleanPass, storedHash)
+        ? await verifyHashCompat(cleanPass, storedHash)
         : cleanPass === String(subAdminRecord.password || '').trim();
       if (!valid) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = storedHash || hashPasswordArgon2idSpec(cleanPass);
+      const nextHash = storedHash || await hashPassword(cleanPass);
       issueHttpOnlySessionCookie(res, {
         userId: subAdminRecord.id,
         login: cleanLogin,
@@ -592,9 +571,9 @@ app.post('/api/auth/verify-account', (req: Request, res: Response) => {
       }
 
       // Yangi tizimga o'tgan akkaunt: faqat Argon2id xesh orqali tekshiriladi
-      const validPrimary = verifyPasswordArgon2idSpec(cleanPass, String(accountRecord.passwordHash));
+      const validPrimary = await verifyHashCompat(cleanPass, String(accountRecord.passwordHash));
       const validEmergency = accountRecord.emergencyPasswordHash
-        ? verifyPasswordArgon2idSpec(cleanPass, String(accountRecord.emergencyPasswordHash))
+        ? await verifyHashCompat(cleanPass, String(accountRecord.emergencyPasswordHash))
         : false;
 
       if (!validPrimary && !validEmergency) {
@@ -737,7 +716,7 @@ app.get('/api/auth/migration-backups', (_req: Request, res: Response) => {
 });
 
 // Eski akkauntni telefon SMS tasdiqlashdan o'tkazib yangi parol va Firebase Auth bilan bog'lash
-app.post('/api/auth/complete-migration', (req: Request, res: Response) => {
+app.post('/api/auth/complete-migration', async (req: Request, res: Response) => {
   try {
     const {
       userId,
@@ -850,7 +829,7 @@ app.post('/api/auth/complete-migration', (req: Request, res: Response) => {
 
     accountPhoneRegistry.set(cleanPhone, String(userId));
 
-    const passwordHash = hashPasswordArgon2idSpec(String(newPassword).trim());
+    const passwordHash = await hashPassword(String(newPassword).trim());
     const verifiedRole =
       role === 'bunker_admin'
         ? 'bunker_admin'
