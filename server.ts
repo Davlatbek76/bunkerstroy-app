@@ -590,6 +590,15 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
         return res.json({ success: false, invalidCredentials: true });
       }
 
+      // Eski scrypt xesh bilan to'g'ri kirilgan bo'lsa, haqiqiy Argon2id xesh tayyorlaymiz
+      let upgradedPasswordHash: string | undefined;
+      if (validPrimary) {
+        const chk = await verifyPassword(cleanPass, String(accountRecord.passwordHash));
+        if (chk.valid && chk.needsRehash) {
+          upgradedPasswordHash = await hashPassword(cleanPass);
+        }
+      }
+
       const verifiedRole =
         accountRecord.role === 'supplier'
           ? 'supplier'
@@ -610,6 +619,7 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
         verifiedRole,
         userId: accountRecord.id,
         usedEmergencyPassword: !validPrimary && validEmergency,
+        ...(upgradedPasswordHash ? { passwordHash: upgradedPasswordHash } : {}),
       });
     }
 
