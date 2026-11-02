@@ -10,7 +10,7 @@ const scryptAsync = promisify(crypto.scrypt) as (
 ) => Promise<Buffer>;
 
 const ARGON2_OPTIONS = {
-  type: argon2.argon2id,
+  type: 2 as const, // 2 = argon2id
   memoryCost: 19456, // 19 MiB (OWASP)
   timeCost: 2,
   parallelism: 1,

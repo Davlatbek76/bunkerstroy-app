@@ -9,6 +9,7 @@ import { GoogleGenAI, Modality, LiveServerMessage } from '@google/genai';
 import dotenv from 'dotenv';
 import companyRoutes from './server/routes/companyRoutes';
 import eimzoRoutes from './server/routes/eimzoRoutes';
+import { hashPassword, verifyPassword } from './server/security/passwordHash';
 
 dotenv.config();
 
@@ -256,10 +257,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
-  res.setHeader('X-WAF-Protection', 'Cloudflare-Enterprise + AWS-WAF-Shield-Active');
-  res.setHeader('X-VPC-Isolation', 'AWS-VPC-Private-Subnet-Protected');
-  res.setHeader('X-Password-Hash-Spec', 'Argon2id (m=65536,t=3,p=4)');
-  res.setHeader('X-Encryption-Layer', 'At-Rest-AES-256-GCM; In-Transit-TLS-1.3-SSL-Pinned');
   next();
 });
 
@@ -275,14 +272,10 @@ app.post('/api/security/session', (req: Request, res: Response) => {
       subAdminPermissions,
       firebaseUid,
     });
-    const argon2idDigest = password ? hashPasswordArgon2idSpec(String(password)) : undefined;
 
     return res.json({
       success: true,
       cookieMode: 'HttpOnly; Secure; SameSite=None',
-      wafShield: 'Cloudflare Enterprise + AWS WAF',
-      vpcStorage: 'AWS VPC Encrypted At-Rest (AES-256-GCM) & In-Transit (TLS 1.3 + SSL Pinning)',
-      argon2idHash: argon2idDigest,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err?.message || 'Security session error' });
@@ -334,26 +327,26 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   return res.json({ success: true });
 });
 
-app.post('/api/auth/hash-password', (req: Request, res: Response) => {
+app.post('/api/auth/hash-password', async (req: Request, res: Response) => {
   try {
     const { password } = req.body || {};
     if (!password || String(password).trim().length < 4) {
       return res.status(400).json({ success: false, error: 'Parol kamida 4 ta belgidan iborat bo‘lishi kerak' });
     }
-    const passwordHash = hashPasswordArgon2idSpec(String(password).trim());
+    const passwordHash = await hashPassword(String(password).trim());
     return res.json({ success: true, passwordHash });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err?.message || 'Hashlashda xatolik' });
   }
 });
 
-app.post('/api/auth/verify-password', (req: Request, res: Response) => {
+app.post('/api/auth/verify-password', async (req: Request, res: Response) => {
   try {
     const { password, passwordHash } = req.body || {};
     if (!password || !passwordHash) {
       return res.json({ success: true, valid: false });
     }
-    const valid = verifyPasswordArgon2idSpec(String(password).trim(), String(passwordHash).trim());
+    const { valid } = await verifyPassword(String(password).trim(), String(passwordHash).trim());
     return res.json({ success: true, valid });
   } catch {
     return res.json({ success: true, valid: false });
