@@ -28,3 +28,6 @@ WinDows/
 .env
 server/backups/
 server/backups/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
