@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import companyRoutes from './server/routes/companyRoutes';
 import eimzoRoutes from './server/routes/eimzoRoutes';
 import { hashPassword, verifyPassword } from './server/security/passwordHash';
+import { getAdminByLogin, updateAdminHash } from './server/security/adminStore';
 
 dotenv.config();
 
@@ -365,181 +366,35 @@ app.post('/api/auth/verify-account', async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'Login kiritilishi shart' });
     }
 
-    // 1. Bunker Admin check on server
-    if (bunkerAdminRecord && cleanLogin === String(bunkerAdminRecord.login || 'ADMIN').trim()) {
-      const hasMigratedHash = Boolean(
-        bunkerAdminRecord.passwordMigrated &&
-          bunkerAdminRecord.passwordHash &&
-          String(bunkerAdminRecord.passwordHash).startsWith('$argon2id$')
-      );
-      if (requireAdminMigration && !hasMigratedHash) {
-        const linkedPhone = String(bunkerAdminRecord.phone || '+998 71 200 00 50').trim();
-        const cleanLinked = normalizeUzPhone(linkedPhone);
-        if (!isValidUzPhone(cleanLinked)) {
-          return res.status(400).json({
-            success: false,
-            requiresMigration: true,
-            missingPhone: true,
-            userId: 'bunker-admin-master',
-            login: cleanLogin,
-            role: 'bunker_admin',
-            error: 'Admin hisobiga telefon raqami biriktirilmagan!',
-          });
-        }
-        accountPhoneRegistry.set(cleanLinked, 'bunker-admin-master');
-        return res.json({
-          success: true,
-          requiresMigration: true,
-          userId: 'bunker-admin-master',
-          login: cleanLogin,
-          role: 'bunker_admin',
-          phone: linkedPhone,
-          maskedPhone: maskPhoneDisplay(linkedPhone),
-          displayName: 'Bunker Admin',
-        });
-      }
-
-      const storedHash = bunkerAdminRecord.passwordHash;
-      const valid = storedHash
-        ? await verifyHashCompat(cleanPass, storedHash)
-        : cleanPass === String(bunkerAdminRecord.password || '1234').trim();
-      if (!valid) {
-        return res.json({ success: false, invalidCredentials: true });
-      }
-      const nextHash = await upgradeStoredHash(cleanPass, storedHash);
-      issueHttpOnlySessionCookie(res, {
-        userId: 'bunker-admin-master',
-        login: cleanLogin,
-        role: 'bunker_admin',
-      });
-      return res.json({
-        success: true,
-        verifiedRole: 'bunker_admin',
-        userId: 'bunker-admin-master',
-        passwordHash: nextHash,
-      });
+    // 1-3. Admin, Bunker Admin va Sub-Admin: faqat serverdagi ombor (mijoz yuborgan yozuvlarga ishonilmaydi)
+    let serverAdmin = null as Awaited<ReturnType<typeof getAdminByLogin>>;
+    try {
+      serverAdmin = await getAdminByLogin(cleanLogin);
+    } catch (e: any) {
+      console.error("server_admins omborini o'qib bo'lmadi:", e?.message || e);
     }
-
-    // 2. Super Admin check on server
-    if (adminRecord && cleanLogin === String(adminRecord.login || 'ADMIN.').trim()) {
-      const hasMigratedHash = Boolean(
-        adminRecord.passwordMigrated &&
-          adminRecord.passwordHash &&
-          String(adminRecord.passwordHash).startsWith('$argon2id$')
-      );
-      if (requireAdminMigration && !hasMigratedHash) {
-        const linkedPhone = String(adminRecord.phone || '+998 71 200 00 50').trim();
-        const cleanLinked = normalizeUzPhone(linkedPhone);
-        if (!isValidUzPhone(cleanLinked)) {
-          return res.status(400).json({
-            success: false,
-            requiresMigration: true,
-            missingPhone: true,
-            userId: 'admin-master',
-            login: cleanLogin,
-            role: 'admin',
-            error: 'Admin hisobiga telefon raqami biriktirilmagan!',
-          });
-        }
-        accountPhoneRegistry.set(cleanLinked, 'admin-master');
-        return res.json({
-          success: true,
-          requiresMigration: true,
-          userId: 'admin-master',
-          login: cleanLogin,
-          role: 'admin',
-          phone: linkedPhone,
-          maskedPhone: maskPhoneDisplay(linkedPhone),
-          displayName: 'Bosh Admin',
-        });
-      }
-
-      const storedHash = adminRecord.passwordHash;
-      const storedEmergencyHash = adminRecord.emergencyPasswordHash;
-      const validPrimary = storedHash
-        ? await verifyHashCompat(cleanPass, storedHash)
-        : cleanPass === String(adminRecord.password || '1234.').trim();
-      const validEmergency = storedEmergencyHash
-        ? await verifyHashCompat(cleanPass, storedEmergencyHash)
-        : Boolean(adminRecord.emergencyPassword && cleanPass === String(adminRecord.emergencyPassword).trim());
-
-      if (!validPrimary && !validEmergency) {
+    if (serverAdmin) {
+      const check = await verifyPassword(cleanPass, serverAdmin.passwordHash);
+      if (!check.valid) {
         return res.json({ success: false, invalidCredentials: true });
       }
-      const nextHash = validPrimary && storedHash
-        ? await upgradeStoredHash(cleanPass, storedHash)
-        : (storedHash || await hashPassword(String(adminRecord.password || cleanPass).trim()));
+      if (check.needsRehash) {
+        await updateAdminHash(serverAdmin.id, await hashPassword(cleanPass));
+      }
+      const sessionRole = serverAdmin.role === 'bunker_admin' ? 'bunker_admin' : 'admin';
+      const isSub = serverAdmin.role === 'sub_admin';
       issueHttpOnlySessionCookie(res, {
-        userId: 'admin-master',
-        login: cleanLogin,
-        role: 'admin',
+        userId: serverAdmin.id,
+        login: serverAdmin.login,
+        role: sessionRole,
+        isSubAdmin: isSub,
+        subAdminPermissions: isSub ? serverAdmin.permissions || [] : undefined,
       });
       return res.json({
         success: true,
-        verifiedRole: 'admin',
-        userId: 'admin-master',
-        usedEmergencyPassword: !validPrimary && validEmergency,
-        passwordHash: nextHash,
-      });
-    }
-
-    // 3. Sub-Admin check on server
-    if (subAdminRecord && subAdminRecord.id) {
-      const hasMigratedHash = Boolean(
-        subAdminRecord.passwordMigrated &&
-          subAdminRecord.passwordHash &&
-          String(subAdminRecord.passwordHash).startsWith('$argon2id$')
-      );
-      if (requireAdminMigration && !hasMigratedHash) {
-        const linkedPhone = String(subAdminRecord.phone || '+998 71 200 00 50').trim();
-        const cleanLinked = normalizeUzPhone(linkedPhone);
-        if (!isValidUzPhone(cleanLinked)) {
-          return res.status(400).json({
-            success: false,
-            requiresMigration: true,
-            missingPhone: true,
-            userId: subAdminRecord.id,
-            login: cleanLogin,
-            role: 'admin',
-            isSubAdmin: true,
-            error: 'Sub-admin hisobiga telefon raqami biriktirilmagan!',
-          });
-        }
-        accountPhoneRegistry.set(cleanLinked, String(subAdminRecord.id));
-        return res.json({
-          success: true,
-          requiresMigration: true,
-          userId: subAdminRecord.id,
-          login: cleanLogin,
-          role: 'admin',
-          isSubAdmin: true,
-          phone: linkedPhone,
-          maskedPhone: maskPhoneDisplay(linkedPhone),
-          displayName: subAdminRecord.cabinetName || cleanLogin,
-        });
-      }
-
-      const storedHash = subAdminRecord.passwordHash;
-      const valid = storedHash
-        ? await verifyHashCompat(cleanPass, storedHash)
-        : cleanPass === String(subAdminRecord.password || '').trim();
-      if (!valid) {
-        return res.json({ success: false, invalidCredentials: true });
-      }
-      const nextHash = await upgradeStoredHash(cleanPass, storedHash);
-      issueHttpOnlySessionCookie(res, {
-        userId: subAdminRecord.id,
-        login: cleanLogin,
-        role: 'admin',
-        isSubAdmin: true,
-        subAdminPermissions: subAdminRecord.permissions || [],
-      });
-      return res.json({
-        success: true,
-        verifiedRole: 'admin',
-        isSubAdmin: true,
-        userId: subAdminRecord.id,
-        passwordHash: nextHash,
+        verifiedRole: sessionRole,
+        isSubAdmin: isSub,
+        userId: serverAdmin.id,
       });
     }
 
