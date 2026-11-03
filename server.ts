@@ -146,11 +146,14 @@ const OTP_MAX_SENDS_PER_WINDOW = 5;
 const accountPhoneRegistry = new Map<string, string>();
 
 // Firebase Test Phone Numbers (Firebase Console test raqamlari orqali xavfsiz testlash uchun)
-const FIREBASE_TEST_PHONE_NUMBERS: Record<string, string> = {
+const FIREBASE_TEST_PHONE_NUMBERS_RAW: Record<string, string> = {
   '998900000001': '123456',
   '998900000002': '654321',
   '998900000003': '111222',
 };
+// Test raqamlar va qotirilgan OTP kodlari faqat ENABLE_TEST_PHONES=1 bo'lganda (lokal test) ishlaydi. Productionda hech qachon yoqilmaydi.
+const FIREBASE_TEST_PHONE_NUMBERS: Record<string, string> =
+  process.env.ENABLE_TEST_PHONES === '1' ? FIREBASE_TEST_PHONE_NUMBERS_RAW : {};
 
 // Migratsiyadan oldin zahira nusxa (Backup) va qaytarish (Rollback) ombori
 interface MigrationBackupRecord {
@@ -1703,6 +1706,12 @@ app.post('/api/sms/send', async (req: Request, res: Response) => {
     // SMS tasdiqlash kodi FAQAT backendda kriptografik tasodifiy tarzda yaratiladi
     // Agar Firebase Test Phone Number bo'lsa (998900000001..3), belgilangan test OTP ishlatiladi.
     const firebaseTestOtp = FIREBASE_TEST_PHONE_NUMBERS[cleanPhone];
+    if (!firebaseTestOtp) {
+      return res.status(501).json({
+        success: false,
+        error: "Server SMS kanali sozlanmagan. Telefonni Firebase orqali tasdiqlang.",
+      });
+    }
     const serverGeneratedCode = firebaseTestOtp || crypto.randomInt(100000, 1000000).toString();
     const resolvedPurpose = String(purpose || 'confirm');
     const isTestSuiteHeader = req.headers['x-bunkerstroy-test-suite'] === '1';
