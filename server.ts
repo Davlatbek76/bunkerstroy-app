@@ -254,28 +254,6 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
-// HttpOnly + Secure Cookie Session Endpoint (JavaScript o'qiy olmaydigan HttpOnly va Secure kukilar)
-app.post('/api/security/session', (req: Request, res: Response) => {
-  try {
-    const { userId, login, role, password, isSubAdmin, subAdminPermissions, firebaseUid } = req.body || {};
-    issueHttpOnlySessionCookie(res, {
-      userId: userId || 'anon',
-      login: login || '',
-      role: role || 'individual',
-      isSubAdmin,
-      subAdminPermissions,
-      firebaseUid,
-    });
-
-    return res.json({
-      success: true,
-      cookieMode: 'HttpOnly; Secure; SameSite=None',
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || 'Security session error' });
-  }
-});
-
 // Server-side Session & Role Verification Endpoint
 app.get('/api/auth/session', (req: Request, res: Response) => {
   try {

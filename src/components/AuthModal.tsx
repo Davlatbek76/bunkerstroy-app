@@ -32,7 +32,6 @@ import {
   recordFailedLoginAttempt,
   clearFailedAttemptsOnSuccess,
   verifyAndConsumeOneTimePassword,
-  issueSecureHttpOnlySession,
   findCabinetForPhoneRecovery,
   updateCabinetPasswordAfterSmsRecovery,
   getBlockedLoginRegisteredPhoneInfo,
@@ -782,13 +781,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     } catch {}
 
     await acquireCabinetDeviceLock(tLogin, newProfile.id);
-
-    issueSecureHttpOnlySession({
-      userId: newProfile.id,
-      login: tLogin,
-      role: newProfile.role,
-      password: tPass,
-    });
 
     onClose();
     setLoading(false);

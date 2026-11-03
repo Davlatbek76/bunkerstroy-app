@@ -865,22 +865,6 @@ export function getBlockedLoginRegisteredPhoneInfo(rawLogin: string): {
   };
 }
 
-export async function issueSecureHttpOnlySession(payload: {
-  userId: string;
-  login: string;
-  role: string;
-  password?: string;
-}): Promise<void> {
-  try {
-    await fetch('/api/security/session', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    });
-  } catch {}
-}
-
 // ============================================================================
 // SINGLE-DEVICE ACTIVE CABINET LOCK (Kabinet ichida foydalanuvchi bo'lganda boshqa qurilmadan kirishni bloklash)
 // ============================================================================
