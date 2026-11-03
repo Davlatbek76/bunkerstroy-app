@@ -1,6 +1,6 @@
 import { adminDb } from './firebaseAdmin';
 
-export type AdminRole = 'admin' | 'bunker_admin';
+export type AdminRole = 'admin' | 'bunker_admin' | 'sub_admin';
 
 export interface ServerAdmin {
   id: string;
@@ -9,6 +9,8 @@ export interface ServerAdmin {
   role: AdminRole;
   phone: string;
   passwordHash: string;
+  permissions?: string[];
+  cabinetName?: string;
   updatedAt: string;
 }
 
@@ -22,13 +24,19 @@ export async function getAdminByLogin(login: string): Promise<ServerAdmin | null
   return snap.docs[0].data() as ServerAdmin;
 }
 
+export async function getAdminById(id: string): Promise<ServerAdmin | null> {
+  const snap = await adminDb().collection(COLLECTION).doc(String(id || '_')).get();
+  return snap.exists ? (snap.data() as ServerAdmin) : null;
+}
+
 export async function upsertAdmin(a: Omit<ServerAdmin, 'loginLower' | 'updatedAt'>): Promise<void> {
   const doc: ServerAdmin = {
     ...a,
     loginLower: a.login.trim().toLowerCase(),
     updatedAt: new Date().toISOString(),
   };
-  await adminDb().collection(COLLECTION).doc(a.id).set(doc);
+  // Firestore undefined qiymatni qabul qilmaydi
+  await adminDb().collection(COLLECTION).doc(a.id).set(JSON.parse(JSON.stringify(doc)));
 }
 
 export async function updateAdminHash(id: string, passwordHash: string): Promise<void> {
