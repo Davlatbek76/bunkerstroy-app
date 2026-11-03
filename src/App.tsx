@@ -498,7 +498,7 @@ export default function App() {
             );
 
           if (needFullZeroReset || (data && data.id && MOCK_FAKE_PRODUCT_IDS.includes(data.id)) || !hasOwnerSupplier) {
-            deleteDoc(doc(db, 'products', d.id)).catch(() => {});
+            // [security] avtomatik o'chirish olib tashlandi (products)
           } else if (data && data.id) {
             fetched.push(data);
           }
@@ -537,7 +537,7 @@ export default function App() {
           snap.forEach((d) => {
             const uData = d.data() as any;
             if (!uData || (uData.role !== 'supplier' && uData.role !== 'admin' && uData.role !== 'bunker_admin')) {
-              deleteDoc(doc(db, 'users', d.id)).catch(() => {});
+              // [security] avtomatik o'chirish olib tashlandi (users)
             }
           });
           localStorage.setItem('bunkerstroy_firestore_customers_purge_v12', 'done');
@@ -555,7 +555,7 @@ export default function App() {
         snapshot.forEach((d) => {
           const ord = d.data() as Order;
           if (!isOrderAfterReset(ord)) {
-            deleteDoc(doc(db, 'orders', d.id)).catch(() => {});
+            // [security] avtomatik o'chirish olib tashlandi (orders)
           } else {
             fetched.push(ord);
           }
