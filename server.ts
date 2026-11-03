@@ -115,7 +115,7 @@ function issueHttpOnlySessionCookie(
   res.cookie('bs_httponly_token', encryptedToken, {
     httpOnly: true,
     secure: true,
-    sameSite: 'none',
+    sameSite: 'lax',
     path: '/',
     maxAge: 24 * 60 * 60 * 1000,
   });
@@ -314,7 +314,7 @@ app.post('/api/auth/logout', (req: Request, res: Response) => {
   res.clearCookie('bs_httponly_token', {
     httpOnly: true,
     secure: true,
-    sameSite: 'none',
+    sameSite: 'lax',
     path: '/',
   });
   return res.json({ success: true });
