@@ -544,19 +544,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setWafStage('checking');
     setSmsSending(true);
 
-    let activeRayId = Math.random().toString(16).slice(2, 10).toUpperCase();
-    try {
-      const wafResp = await fetch('/api/security/waf-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone: regPhone, action: 'register_sms_verification' }),
-      });
-      const wafData = await wafResp.json();
-      if (wafData?.rayId) {
-        activeRayId = wafData.rayId;
-      }
-    } catch {}
+    const activeRayId = Math.random().toString(16).slice(2, 10).toUpperCase();
 
     setWafRayId(activeRayId);
     await new Promise((resolve) => setTimeout(resolve, 900));
@@ -835,15 +823,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setRecoverySendingSms(true);
     setRecoveryGeneratedCode('');
     setRecoverySmsCode('');
-
-    try {
-      await fetch('/api/security/waf-verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ phone: targetPhone, action: 'password_recovery_sms' }),
-      });
-    } catch {}
 
     try {
       const res = await sendSecurePhoneOtp(targetPhone, 'recovery', 'bs-recaptcha-container');

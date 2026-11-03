@@ -1015,36 +1015,6 @@ app.post('/api/security/cabinet-lock/release', (req: Request, res: Response) => 
   return res.json({ success: true });
 });
 
-// Cloudflare (WAF) va Bot Management Verification Endpoint (SMS tasdiqlash bosilganda)
-app.post('/api/security/waf-verify', (req: Request, res: Response) => {
-  try {
-    const { phone, action } = req.body || {};
-    const rayId = crypto.randomBytes(8).toString('hex').toUpperCase();
-    const clearanceToken = encryptAtRestAES256GCM(
-      JSON.stringify({ phone: phone || '', action: action || 'sms_request', rayId, ts: Date.now() })
-    );
-
-    res.cookie('cf_clearance_bs_waf', clearanceToken, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'none',
-      path: '/',
-      maxAge: 25 * 60 * 1000,
-    });
-
-    return res.json({
-      success: true,
-      verified: true,
-      rayId,
-      protection: 'Cloudflare Enterprise WAF & Bot Management',
-      encryption: 'Argon2id + AES-256-GCM At-Rest & SSL Pinning',
-      checkedAt: new Date().toISOString(),
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err?.message || 'WAF verification error' });
-  }
-});
-
 // MChJ / Yuridik shaxs STIR lookup & ro'yxatdan o'tkazish marshrutlari
 app.use('/api/company', companyRoutes);
 // E-IMZO (Elektron Raqamli Imzo) orqali tasdiqlash marshrutlari
