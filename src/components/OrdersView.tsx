@@ -246,6 +246,7 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
   // SMS verification state for profile personal information update
   const [profileSmsSent, setProfileSmsSent] = useState(false);
   const [profileSmsCode, setProfileSmsCode] = useState('');
+  const [profileSmsPhone, setProfileSmsPhone] = useState('');
   const [profileSmsInput, setProfileSmsInput] = useState('');
   const [profileSmsTimer, setProfileSmsTimer] = useState(0);
   const [profileSmsNotice, setProfileSmsNotice] = useState<string | null>(null);
@@ -800,26 +801,32 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
       }
     } catch {}
 
-    const genCode = Math.floor(100000 + Math.random() * 900000).toString();
-    setProfileSmsCode(genCode);
-    setProfileSmsSent(true);
-    setProfileSmsTimer(60);
     setProfileSmsInput('');
 
     try {
       const smsResp = await fetch('/api/sms/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone, code: genCode }),
+        body: JSON.stringify({ phone, purpose: 'profile' }),
       });
-      const smsData = await smsResp.json();
-      if (smsData?.mode === 'real_sms') {
-        setProfileSmsNotice(`📲 SMS kod ${phone} raqamiga yuborildi!`);
-      } else {
-        setProfileSmsNotice(`📲 ${phone} raqamiga SMS tasdiqlash kodi yuborildi: ${genCode}`);
+      const smsData = await smsResp.json().catch(() => ({}));
+      if (!smsResp.ok || !smsData?.success) {
+        const msg = smsData?.error || "SMS yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.";
+        setProfileSmsSent(false);
+        setProfileSmsTimer(0);
+        setProfileSmsNotice(null);
+        setSaveErrorMessage(msg);
+        return;
       }
+      setProfileSmsPhone(phone);
+      setProfileSmsSent(true);
+      setProfileSmsTimer(60);
+      setProfileSmsNotice(`📲 SMS kod ${phone} raqamiga yuborildi!`);
     } catch {
-      setProfileSmsNotice(`📲 ${phone} raqamiga SMS tasdiqlash kodi yuborildi: ${genCode}`);
+      setProfileSmsSent(false);
+      setProfileSmsTimer(0);
+      setProfileSmsNotice(null);
+      setSaveErrorMessage("SMS xizmati bilan aloqa o'rnatilmadi. Qayta urinib ko'ring.");
     }
   };
 
@@ -830,8 +837,13 @@ export const OrdersView: React.FC<OrdersViewProps> = ({
     setSaveErrorMessage(null);
     setSaveSuccessMessage(null);
 
-    if (!profileSmsInput.trim() || profileSmsInput.trim() !== profileSmsCode) {
-      setSaveErrorMessage("SMS tasdiqlash kodi noto'g'ri kiritildi! Iltimos, qayta tekshirib tering.");
+    const smsCheck = await verifySecurePhoneOtp({
+      phone: profileSmsPhone,
+      code: profileSmsInput,
+      purpose: 'profile',
+    });
+    if (!smsCheck.verified) {
+      setSaveErrorMessage(smsCheck.error || "SMS tasdiqlash kodi noto'g'ri kiritildi! Iltimos, qayta tekshirib tering.");
       return;
     }
 
