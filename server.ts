@@ -1618,11 +1618,56 @@ Quyidagi parametrlarni hisoblab, JSON formatida javob bering:
 // ============================================================================
 // SMS OTP ENDPOINT (Tashqi SMS API kalitisiz, Firebase Phone Auth va Server OTP himoyasi bilan)
 // ============================================================================
+const DEVSMS_URL = 'https://devsms.uz/api/sms/send';
+
+function devsmsTemplateType(purpose: string): number {
+  const p = String(purpose || '').toLowerCase();
+  if (p.includes('login') || p.includes('signin')) return 4;
+  if (p.includes('reset') || p.includes('password')) return 2;
+  if (p.includes('regist') || p.includes('signup')) return 3;
+  return 1;
+}
+
+async function sendDevSmsOtp(
+  cleanPhone: string,
+  code: string,
+  purpose: string
+): Promise<{ ok: boolean }> {
+  const token = process.env.DEVSMS_TOKEN || '';
+  if (!token) return { ok: false };
+  try {
+    const r = await fetch(DEVSMS_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        phone: cleanPhone,
+        type: 'universal_otp',
+        template_type: devsmsTemplateType(purpose),
+        service_name: 'BunkerStroy',
+        otp_code: code,
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const data: any = await r.json().catch(() => ({}));
+    const ok = r.ok && data && data.success === true;
+    if (!ok) {
+      console.error('[DevSMS] yuborilmadi: HTTP', r.status, String(data?.message || '').slice(0, 120));
+    }
+    return { ok };
+  } catch (e: any) {
+    console.error('[DevSMS] xatolik:', e?.name || 'error');
+    return { ok: false };
+  }
+}
+
 app.get('/api/sms/status', async (_req: Request, res: Response) => {
   return res.json({
-    connected: true,
-    provider: 'firebase_phone_auth',
-    apiKeyConfigured: false,
+    connected: !!process.env.DEVSMS_TOKEN,
+    provider: 'devsms',
+    apiKeyConfigured: !!process.env.DEVSMS_TOKEN,
   });
 });
 
@@ -1706,10 +1751,10 @@ app.post('/api/sms/send', async (req: Request, res: Response) => {
     // SMS tasdiqlash kodi FAQAT backendda kriptografik tasodifiy tarzda yaratiladi
     // Agar Firebase Test Phone Number bo'lsa (998900000001..3), belgilangan test OTP ishlatiladi.
     const firebaseTestOtp = FIREBASE_TEST_PHONE_NUMBERS[cleanPhone];
-    if (!firebaseTestOtp) {
+    if (!firebaseTestOtp && !process.env.DEVSMS_TOKEN) {
       return res.status(501).json({
         success: false,
-        error: "Server SMS kanali sozlanmagan. Telefonni Firebase orqali tasdiqlang.",
+        error: "sms_not_configured",
       });
     }
     const serverGeneratedCode = firebaseTestOtp || crypto.randomInt(100000, 1000000).toString();
@@ -1738,11 +1783,20 @@ app.post('/api/sms/send', async (req: Request, res: Response) => {
       });
     }
 
+    const smsResult = await sendDevSmsOtp(cleanPhone, serverGeneratedCode, resolvedPurpose);
+    if (!smsResult.ok) {
+      serverOtpStore.delete(cleanPhone);
+      return res.status(502).json({
+        success: false,
+        error: "SMS yuborib bo'lmadi. Birozdan so'ng qayta urinib ko'ring.",
+      });
+    }
+
     // Kod hech qachon JSON javobida qaytarilmaydi va ekranga chiqarilmaydi
     return res.json({
       success: true,
       mode: 'real_sms',
-      provider: 'firebase_phone_auth',
+      provider: 'devsms',
       phone: cleanPhone,
       message: 'SMS tasdiqlash kodi telefon raqamingizga yuborildi.',
     });
